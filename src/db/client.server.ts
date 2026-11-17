@@ -1,18 +1,21 @@
-import Database from "better-sqlite3";
-import { type BetterSQLite3Database, drizzle } from "drizzle-orm/better-sqlite3";
+import { drizzle, type SQLJsDatabase } from "drizzle-orm/sql-js";
+import type { Database } from "sql.js";
+import initSqlJs from "sql.js/dist/sql-wasm-inline.js";
 import * as schema from "./schema";
 import { seedDatabase } from "./seed/seed.server";
 
 export const RESET_INTERVAL_MS = 2 * 60 * 60 * 1000;
 
-type AppDatabase = BetterSQLite3Database<typeof schema>;
+type AppDatabase = SQLJsDatabase<typeof schema>;
 
 interface DatabaseState {
-  sqlite: Database.Database;
+  sqlite: Database;
   db: AppDatabase;
   epoch: number;
   seededAt: number;
 }
+
+const SQL = await initSqlJs();
 
 const globalForDb = globalThis as unknown as { __cupcakeDb?: DatabaseState };
 
@@ -20,8 +23,8 @@ const currentEpoch = (now = Date.now()) => Math.floor(now / RESET_INTERVAL_MS);
 
 const createDatabase = (): DatabaseState => {
   const now = Date.now();
-  const sqlite = new Database(":memory:");
-  sqlite.pragma("foreign_keys = ON");
+  const sqlite = new SQL.Database();
+  sqlite.run("PRAGMA foreign_keys = ON;");
   sqlite.exec(schema.SCHEMA_SQL);
   const db = drizzle(sqlite, { schema });
   seedDatabase(db, now);

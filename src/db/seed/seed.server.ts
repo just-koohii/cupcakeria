@@ -1,4 +1,4 @@
-import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
+import type { SQLJsDatabase } from "drizzle-orm/sql-js";
 import type * as schema from "../schema";
 import {
   type OrderStatus,
@@ -60,7 +60,7 @@ const statusForAge = (ageDays: number, roll: number): OrderStatus => {
   return recent[Math.floor(roll * recent.length)];
 };
 
-export const seedDatabase = (db: BetterSQLite3Database<typeof schema>, now = Date.now()) => {
+export const seedDatabase = (db: SQLJsDatabase<typeof schema>, now = Date.now()) => {
   const random = createRandom(20260101);
   const pick = <T>(list: readonly T[]): T => list[Math.floor(random() * list.length)];
 

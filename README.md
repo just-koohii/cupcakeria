@@ -1,6 +1,6 @@
 # Cupcakeria
 
-Loja online de cupcakes feita com TanStack Start (React), TanStack Query, shadcn/ui (Base UI) e SQLite em memória (better-sqlite3 + Drizzle).
+Loja online de cupcakes feita com TanStack Start (React), TanStack Query, shadcn/ui (Base UI) e SQLite em memória (sql.js + Drizzle).
 
 ## Rodando localmente
 
