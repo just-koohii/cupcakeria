@@ -1,9 +1,10 @@
 import { createServerFn } from "@tanstack/react-start";
 import { and, asc, eq, like, or, sql } from "drizzle-orm";
-import { MAX_PRICE_CENTS } from "./constants";
+import { validateProductForm } from "./schemas";
 import { getDb } from "@/db/client.server";
 import { orderItems, products } from "@/db/schema";
 import { adminMiddleware } from "@/features/auth/middleware";
+import { assertNoFieldErrors } from "@/utils/form-errors";
 import { asRecord, integerInRange, optionalString, requiredString } from "@/utils/validation";
 
 const slugify = (value: string) =>
@@ -86,20 +87,10 @@ export const getProductBySlug = createServerFn({ method: "GET" })
   });
 
 const parseProductInput = (input: unknown) => {
-  const data = asRecord(input);
-  const imageUrl = requiredString(data.imageUrl, "Imagem", { max: 500 });
-  if (!imageUrl.startsWith("/images/") && !/^https:\/\//.test(imageUrl)) {
-    throw new Error("A imagem deve ser uma foto do catálogo ou uma URL https.");
-  }
-  return {
-    name: requiredString(data.name, "Nome", { min: 2, max: 80 }),
-    description: requiredString(data.description, "Descrição", { min: 10, max: 600 }),
-    category: requiredString(data.category, "Categoria", { max: 40 }),
-    priceCents: integerInRange(data.priceCents, "Preço (centavos)", 1, MAX_PRICE_CENTS),
-    imageUrl,
-    active: data.active !== false,
-    featured: data.featured === true,
-  };
+  const { values, priceCents, errors } = validateProductForm(input);
+  assertNoFieldErrors(errors);
+  const { price: _price, ...rest } = values;
+  return { ...rest, priceCents };
 };
 
 export const listAllProducts = createServerFn({ method: "GET" })

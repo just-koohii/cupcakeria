@@ -1,18 +1,12 @@
 import { createServerFn } from "@tanstack/react-start";
 import { and, eq, inArray } from "drizzle-orm";
-import { isValidCardNumber, isValidExpiry } from "./card";
+import { validateCheckoutForm } from "./schemas";
 import { getDb } from "@/db/client.server";
-import { orderItems, orders, PAYMENT_METHODS, products } from "@/db/schema";
+import { orderItems, orders, products } from "@/db/schema";
 import { customerMiddleware } from "@/features/auth/middleware";
 import { MAX_ITEM_QUANTITY } from "@/features/cart/cart-store";
-import {
-  asRecord,
-  integerInRange,
-  oneOf,
-  optionalString,
-  requiredString,
-  ValidationError,
-} from "@/utils/validation";
+import { assertNoFieldErrors } from "@/utils/form-errors";
+import { asRecord, integerInRange, ValidationError } from "@/utils/validation";
 
 const parseCheckoutInput = (input: unknown) => {
   const data = asRecord(input);
@@ -26,41 +20,21 @@ const parseCheckoutInput = (input: unknown) => {
       quantity: integerInRange(item.quantity, "Quantidade", 1, MAX_ITEM_QUANTITY),
     };
   });
-  const address = asRecord(data.address);
-  const paymentMethod = oneOf(data.paymentMethod, PAYMENT_METHODS, "Forma de pagamento");
-
-  let cardLast4: string | null = null;
-  if (paymentMethod === "cartao") {
-    const card = asRecord(data.card);
-    const number = requiredString(card.number, "Número do cartão", { max: 30 }).replace(/\D/g, "");
-    requiredString(card.holder, "Nome impresso no cartão", { min: 3, max: 80 });
-    const expiry = requiredString(card.expiry, "Validade", { max: 5 });
-    const cvv = requiredString(card.cvv, "CVV", { max: 4 });
-    if (!isValidCardNumber(number)) {
-      throw new ValidationError("Número do cartão inválido.");
-    }
-    if (!isValidExpiry(expiry)) {
-      throw new ValidationError("Validade do cartão inválida ou expirada.");
-    }
-    if (!/^\d{3,4}$/.test(cvv)) {
-      throw new ValidationError("CVV inválido.");
-    }
-    cardLast4 = number.slice(-4);
-  }
-
+  const { values, errors } = validateCheckoutForm(data);
+  assertNoFieldErrors(errors);
   return {
     items,
-    paymentMethod,
-    cardLast4,
-    notes: optionalString(data.notes, "Observações", 300),
+    paymentMethod: values.paymentMethod,
+    cardLast4: values.paymentMethod === "cartao" ? values.cardNumber.slice(-4) : null,
+    notes: values.notes || null,
     address: {
-      street: requiredString(address.street, "Endereço", { max: 120 }),
-      number: requiredString(address.number, "Número", { max: 10 }),
-      complement: optionalString(address.complement, "Complemento", 60),
-      district: requiredString(address.district, "Bairro", { max: 60 }),
-      city: requiredString(address.city, "Cidade", { max: 60 }),
-      state: requiredString(address.state, "UF", { min: 2, max: 2 }).toUpperCase(),
-      zip: requiredString(address.zip, "CEP", { min: 8, max: 9 }),
+      street: values.street,
+      number: values.number,
+      complement: values.complement || null,
+      district: values.district,
+      city: values.city,
+      state: values.state,
+      zip: values.zip,
     },
   };
 };

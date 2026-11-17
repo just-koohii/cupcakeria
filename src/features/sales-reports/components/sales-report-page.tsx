@@ -4,12 +4,11 @@ import { useSuspenseQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { salesReportQueryOptions } from "../queries";
 import type { SalesReport } from "../types";
+import { ReportRangeForm } from "./report-range-form";
 import { RevenueChart } from "./revenue-chart";
 import { StatCard } from "@/components/stat-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Field, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -83,32 +82,7 @@ export function SalesReportPage({ from, to }: { from: string; to: string }) {
 
       <Card size="sm">
         <CardContent className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end">
-          <form
-            key={`${from}-${to}`}
-            className="flex flex-wrap items-end gap-3"
-            onSubmit={(event) => {
-              event.preventDefault();
-              const form = new FormData(event.currentTarget);
-              setRange({ from: String(form.get("from")), to: String(form.get("to")) });
-            }}
-          >
-            <Field className="w-auto">
-              <FieldLabel htmlFor="report-from">De</FieldLabel>
-              <Input
-                id="report-from"
-                name="from"
-                type="date"
-                defaultValue={from}
-                max={to}
-                required
-              />
-            </Field>
-            <Field className="w-auto">
-              <FieldLabel htmlFor="report-to">Até</FieldLabel>
-              <Input id="report-to" name="to" type="date" defaultValue={to} required />
-            </Field>
-            <Button type="submit">Aplicar</Button>
-          </form>
+          <ReportRangeForm range={{ from, to }} onApply={setRange} />
           <div className="flex flex-wrap gap-2">
             {PRESETS.map((preset) => {
               const today = todayKey();

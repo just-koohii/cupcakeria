@@ -1,8 +1,9 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
-import { formatCardNumber, formatExpiry } from "../card";
+import { type FormEvent, useState } from "react";
 import { placeOrder } from "../checkout.functions";
+import { validateCheckoutForm } from "../schemas";
+import { FormField, FormTextareaField } from "@/components/form-field";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
@@ -13,28 +14,45 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Field, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
+import { FieldError, FieldGroup, FieldLegend, FieldSet } from "@/components/ui/field";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
-import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toast";
 import { PAYMENT_METHODS, type PaymentMethod } from "@/db/enums";
 import { cartActions, useCart } from "@/features/cart/cart-store";
 import { PAYMENT_METHOD_LABELS } from "@/features/orders/constants";
+import { useFieldErrors } from "@/hooks/use-field-errors";
+import {
+  type FieldErrors,
+  getFieldErrors,
+  getFormErrorMessage,
+  hasFieldErrors,
+} from "@/utils/form-errors";
 import { formatCurrency } from "@/utils/format";
+import {
+  cardNumberMask,
+  digitsMask,
+  expiryMask,
+  lettersMask,
+  stateMask,
+  zipMask,
+} from "@/utils/input-masks";
 
-const field = (form: FormData, name: string) => String(form.get(name) ?? "");
+const focusFirstError = (errors: FieldErrors) => {
+  const [first] = Object.keys(errors);
+  if (first) {
+    document.getElementById(first)?.focus();
+  }
+};
 
-export function CheckoutPage() {
+export const CheckoutPage = () => {
   const { items, totalCents } = useCart();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("pix");
-  const [cardNumber, setCardNumber] = useState("");
-  const [expiry, setExpiry] = useState("");
+  const { errors, setErrors, clearError } = useFieldErrors();
 
   const mutation = useMutation({
     mutationFn: (data: unknown) => placeOrder({ data }),
@@ -52,6 +70,11 @@ export function CheckoutPage() {
       });
       await navigate({ to: "/meus-pedidos" });
     },
+    onError: (error) => {
+      const fieldErrors = getFieldErrors(error);
+      setErrors(fieldErrors);
+      focusFirstError(fieldErrors);
+    },
   });
 
   if (items.length === 0 && !mutation.isSuccess) {
@@ -68,36 +91,26 @@ export function CheckoutPage() {
     );
   }
 
-  const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const onSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
+    const formValues = { ...Object.fromEntries(new FormData(event.currentTarget)), paymentMethod };
+    const { errors: found } = validateCheckoutForm(formValues);
+    setErrors(found);
+    if (hasFieldErrors(found)) {
+      focusFirstError(found);
+      return;
+    }
     mutation.mutate({
+      ...formValues,
       items: items.map((item) => ({ productId: item.productId, quantity: item.quantity })),
-      paymentMethod,
-      notes: field(form, "notes"),
-      address: {
-        street: field(form, "street"),
-        number: field(form, "number"),
-        complement: field(form, "complement"),
-        district: field(form, "district"),
-        city: field(form, "city"),
-        state: field(form, "state"),
-        zip: field(form, "zip"),
-      },
-      card:
-        paymentMethod === "cartao"
-          ? {
-              number: cardNumber,
-              holder: field(form, "cardHolder"),
-              expiry,
-              cvv: field(form, "cvv"),
-            }
-          : undefined,
     });
   };
 
+  const formError = getFormErrorMessage(mutation.error);
+  const fieldProps = (name: string) => ({ name, error: errors[name], onFieldChange: clearError });
+
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-6">
+    <form onSubmit={onSubmit} noValidate className="flex flex-col gap-6">
       <h1 className="font-heading text-3xl font-bold tracking-tight">Finalizar compra</h1>
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
         <div className="flex flex-col gap-6">
@@ -108,43 +121,65 @@ export function CheckoutPage() {
             </CardHeader>
             <CardContent>
               <FieldGroup className="grid gap-4 sm:grid-cols-6">
-                <Field className="sm:col-span-2">
-                  <FieldLabel htmlFor="zip">CEP</FieldLabel>
-                  <Input id="zip" name="zip" required inputMode="numeric" placeholder="00000-000" />
-                </Field>
-                <Field className="sm:col-span-4">
-                  <FieldLabel htmlFor="street">Endereço</FieldLabel>
-                  <Input id="street" name="street" required autoComplete="address-line1" />
-                </Field>
-                <Field className="sm:col-span-2">
-                  <FieldLabel htmlFor="number">Número</FieldLabel>
-                  <Input id="number" name="number" required />
-                </Field>
-                <Field className="sm:col-span-4">
-                  <FieldLabel htmlFor="complement">Complemento</FieldLabel>
-                  <Input id="complement" name="complement" placeholder="Apto, bloco…" />
-                </Field>
-                <Field className="sm:col-span-2">
-                  <FieldLabel htmlFor="district">Bairro</FieldLabel>
-                  <Input id="district" name="district" required />
-                </Field>
-                <Field className="sm:col-span-3">
-                  <FieldLabel htmlFor="city">Cidade</FieldLabel>
-                  <Input id="city" name="city" required autoComplete="address-level2" />
-                </Field>
-                <Field className="sm:col-span-1">
-                  <FieldLabel htmlFor="state">UF</FieldLabel>
-                  <Input id="state" name="state" required maxLength={2} placeholder="SP" />
-                </Field>
-                <Field className="sm:col-span-6">
-                  <FieldLabel htmlFor="notes">Observações</FieldLabel>
-                  <Textarea
-                    id="notes"
-                    name="notes"
-                    maxLength={300}
-                    placeholder="Ex.: interfone quebrado, presente para aniversário…"
-                  />
-                </Field>
+                <FormField
+                  {...fieldProps("zip")}
+                  label="CEP"
+                  fieldClassName="sm:col-span-2"
+                  inputMode="numeric"
+                  autoComplete="postal-code"
+                  placeholder="00000-000"
+                  mask={zipMask}
+                />
+                <FormField
+                  {...fieldProps("street")}
+                  label="Endereço"
+                  fieldClassName="sm:col-span-4"
+                  autoComplete="address-line1"
+                  maxLength={120}
+                />
+                <FormField
+                  {...fieldProps("number")}
+                  label="Número"
+                  fieldClassName="sm:col-span-2"
+                  inputMode="numeric"
+                  mask={digitsMask(6)}
+                />
+                <FormField
+                  {...fieldProps("complement")}
+                  label="Complemento"
+                  fieldClassName="sm:col-span-4"
+                  placeholder="Apto, bloco…"
+                  maxLength={60}
+                />
+                <FormField
+                  {...fieldProps("district")}
+                  label="Bairro"
+                  fieldClassName="sm:col-span-2"
+                  maxLength={60}
+                />
+                <FormField
+                  {...fieldProps("city")}
+                  label="Cidade"
+                  fieldClassName="sm:col-span-3"
+                  autoComplete="address-level2"
+                  maxLength={60}
+                  mask={lettersMask}
+                />
+                <FormField
+                  {...fieldProps("state")}
+                  label="UF"
+                  fieldClassName="sm:col-span-1"
+                  autoComplete="address-level1"
+                  placeholder="SP"
+                  mask={stateMask}
+                />
+                <FormTextareaField
+                  {...fieldProps("notes")}
+                  label="Observações"
+                  fieldClassName="sm:col-span-6"
+                  maxLength={300}
+                  placeholder="Ex.: interfone quebrado, presente para aniversário…"
+                />
               </FieldGroup>
             </CardContent>
           </Card>
@@ -161,7 +196,10 @@ export function CheckoutPage() {
                 <FieldLegend className="sr-only">Forma de pagamento</FieldLegend>
                 <RadioGroup
                   value={paymentMethod}
-                  onValueChange={(value) => setPaymentMethod(value as PaymentMethod)}
+                  onValueChange={(value) => {
+                    setPaymentMethod(value as PaymentMethod);
+                    clearError("paymentMethod");
+                  }}
                   className="grid gap-2 sm:grid-cols-3"
                 >
                   {PAYMENT_METHODS.map((method) => (
@@ -175,6 +213,7 @@ export function CheckoutPage() {
                     </Label>
                   ))}
                 </RadioGroup>
+                {errors.paymentMethod && <FieldError>{errors.paymentMethod}</FieldError>}
               </FieldSet>
 
               {paymentMethod === "pix" && (
@@ -189,45 +228,40 @@ export function CheckoutPage() {
               )}
               {paymentMethod === "cartao" && (
                 <FieldGroup className="grid gap-4 sm:grid-cols-4">
-                  <Field className="sm:col-span-4">
-                    <FieldLabel htmlFor="cardNumber">Número do cartão</FieldLabel>
-                    <Input
-                      id="cardNumber"
-                      inputMode="numeric"
-                      autoComplete="cc-number"
-                      required
-                      value={cardNumber}
-                      onChange={(event) => setCardNumber(formatCardNumber(event.target.value))}
-                      placeholder="4111 1111 1111 1111"
-                    />
-                  </Field>
-                  <Field className="sm:col-span-4">
-                    <FieldLabel htmlFor="cardHolder">Nome impresso no cartão</FieldLabel>
-                    <Input id="cardHolder" name="cardHolder" autoComplete="cc-name" required />
-                  </Field>
-                  <Field className="sm:col-span-2">
-                    <FieldLabel htmlFor="expiry">Validade</FieldLabel>
-                    <Input
-                      id="expiry"
-                      inputMode="numeric"
-                      autoComplete="cc-exp"
-                      required
-                      value={expiry}
-                      onChange={(event) => setExpiry(formatExpiry(event.target.value))}
-                      placeholder="MM/AA"
-                    />
-                  </Field>
-                  <Field className="sm:col-span-2">
-                    <FieldLabel htmlFor="cvv">CVV</FieldLabel>
-                    <Input
-                      id="cvv"
-                      name="cvv"
-                      inputMode="numeric"
-                      autoComplete="cc-csc"
-                      required
-                      maxLength={4}
-                    />
-                  </Field>
+                  <FormField
+                    {...fieldProps("cardNumber")}
+                    label="Número do cartão"
+                    fieldClassName="sm:col-span-4"
+                    inputMode="numeric"
+                    autoComplete="cc-number"
+                    placeholder="4111 1111 1111 1111"
+                    mask={cardNumberMask}
+                  />
+                  <FormField
+                    {...fieldProps("cardHolder")}
+                    label="Nome impresso no cartão"
+                    fieldClassName="sm:col-span-4"
+                    autoComplete="cc-name"
+                    maxLength={80}
+                    mask={lettersMask}
+                  />
+                  <FormField
+                    {...fieldProps("cardExpiry")}
+                    label="Validade"
+                    fieldClassName="sm:col-span-2"
+                    inputMode="numeric"
+                    autoComplete="cc-exp"
+                    placeholder="MM/AA"
+                    mask={expiryMask}
+                  />
+                  <FormField
+                    {...fieldProps("cardCvv")}
+                    label="CVV"
+                    fieldClassName="sm:col-span-2"
+                    inputMode="numeric"
+                    autoComplete="cc-csc"
+                    mask={digitsMask(4)}
+                  />
                 </FieldGroup>
               )}
             </CardContent>
@@ -254,9 +288,9 @@ export function CheckoutPage() {
               <span>Total</span>
               <span>{formatCurrency(totalCents)}</span>
             </div>
-            {mutation.error && (
+            {formError && (
               <Alert variant="destructive">
-                <AlertDescription>{mutation.error.message}</AlertDescription>
+                <AlertDescription>{formError}</AlertDescription>
               </Alert>
             )}
           </CardContent>
@@ -276,4 +310,4 @@ export function CheckoutPage() {
       </div>
     </form>
   );
-}
+};

@@ -1,34 +1,34 @@
 import { Link } from "@tanstack/react-router";
-import { useState } from "react";
+import type { FormEvent } from "react";
+import { validateRegister } from "../schemas";
 import { useRegister } from "../use-auth-actions";
+import { FormField } from "@/components/form-field";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
+import { FieldGroup } from "@/components/ui/field";
 import { Spinner } from "@/components/ui/spinner";
+import { useFieldErrors } from "@/hooks/use-field-errors";
+import { getFieldErrors, getFormErrorMessage, hasFieldErrors } from "@/utils/form-errors";
+import { lettersMask } from "@/utils/input-masks";
 
-export function RegisterForm({ redirectTo }: { redirectTo?: string }) {
+export const RegisterForm = ({ redirectTo }: { redirectTo?: string }) => {
   const mutation = useRegister(redirectTo);
-  const [localError, setLocalError] = useState<string | null>(null);
+  const { errors, setErrors, clearError } = useFieldErrors();
 
-  const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const onSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    const password = String(form.get("password") ?? "");
-    if (password !== String(form.get("confirmPassword") ?? "")) {
-      setLocalError("As senhas não conferem.");
+    const { values, errors: found } = validateRegister(
+      Object.fromEntries(new FormData(event.currentTarget)),
+    );
+    setErrors(found);
+    if (hasFieldErrors(found)) {
       return;
     }
-    setLocalError(null);
-    mutation.mutate({
-      name: String(form.get("name") ?? ""),
-      email: String(form.get("email") ?? ""),
-      password,
-    });
+    mutation.mutate(values, { onError: (error) => setErrors(getFieldErrors(error)) });
   };
 
-  const error = localError ?? mutation.error?.message;
+  const formError = getFormErrorMessage(mutation.error);
 
   return (
     <Card className="w-full max-w-md">
@@ -37,43 +37,48 @@ export function RegisterForm({ redirectTo }: { redirectTo?: string }) {
         <CardDescription>Cadastre-se para comprar e acompanhar seus pedidos.</CardDescription>
       </CardHeader>
       <CardContent>
-        <form onSubmit={onSubmit}>
+        <form onSubmit={onSubmit} noValidate>
           <FieldGroup>
-            {error && (
+            {formError && (
               <Alert variant="destructive">
-                <AlertDescription>{error}</AlertDescription>
+                <AlertDescription>{formError}</AlertDescription>
               </Alert>
             )}
-            <Field>
-              <FieldLabel htmlFor="name">Nome completo</FieldLabel>
-              <Input id="name" name="name" autoComplete="name" required minLength={2} />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="email">E-mail</FieldLabel>
-              <Input id="email" name="email" type="email" autoComplete="email" required />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="password">Senha</FieldLabel>
-              <Input
-                id="password"
-                name="password"
-                type="password"
-                autoComplete="new-password"
-                required
-                minLength={6}
-              />
-              <FieldDescription>Mínimo de 6 caracteres.</FieldDescription>
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="confirmPassword">Confirmar senha</FieldLabel>
-              <Input
-                id="confirmPassword"
-                name="confirmPassword"
-                type="password"
-                autoComplete="new-password"
-                required
-              />
-            </Field>
+            <FormField
+              label="Nome completo"
+              name="name"
+              autoComplete="name"
+              maxLength={120}
+              mask={lettersMask}
+              error={errors.name}
+              onFieldChange={clearError}
+            />
+            <FormField
+              label="E-mail"
+              name="email"
+              type="email"
+              autoComplete="email"
+              maxLength={200}
+              error={errors.email}
+              onFieldChange={clearError}
+            />
+            <FormField
+              label="Senha"
+              name="password"
+              type="password"
+              autoComplete="new-password"
+              description="Mínimo de 6 caracteres."
+              error={errors.password}
+              onFieldChange={clearError}
+            />
+            <FormField
+              label="Confirmar senha"
+              name="confirmPassword"
+              type="password"
+              autoComplete="new-password"
+              error={errors.confirmPassword}
+              onFieldChange={clearError}
+            />
             <Button type="submit" size="lg" disabled={mutation.isPending}>
               {mutation.isPending && <Spinner />}
               Criar conta
@@ -93,4 +98,4 @@ export function RegisterForm({ redirectTo }: { redirectTo?: string }) {
       </CardContent>
     </Card>
   );
-}
+};

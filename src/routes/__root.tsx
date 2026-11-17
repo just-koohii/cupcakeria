@@ -84,7 +84,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       </head>
       <body>
         {children}
-        {import.meta.env.DEV && (
+        {/* {import.meta.env.DEV && (
           <TanStackDevtools
             config={{ position: "bottom-right" }}
             plugins={[
@@ -92,7 +92,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
               TanStackQueryDevtools,
             ]}
           />
-        )}
+        )} */}
         <Scripts />
       </body>
     </html>

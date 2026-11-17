@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import { login, logout, register } from "./auth.functions";
 import { currentUserQueryOptions } from "./queries";
+import type { LoginValues, RegisterValues } from "./schemas";
 import type { SessionUser } from "./types";
 import { cartActions } from "@/features/cart/cart-store";
 
@@ -21,7 +22,7 @@ const useOnAuthenticated = () => {
 export const useLogin = (redirectTo?: string) => {
   const onAuthenticated = useOnAuthenticated();
   return useMutation({
-    mutationFn: (data: { email: string; password: string }) => login({ data }),
+    mutationFn: (data: LoginValues) => login({ data }),
     onSuccess: (user) => onAuthenticated(user, redirectTo),
   });
 };
@@ -29,7 +30,7 @@ export const useLogin = (redirectTo?: string) => {
 export const useRegister = (redirectTo?: string) => {
   const onAuthenticated = useOnAuthenticated();
   return useMutation({
-    mutationFn: (data: { name: string; email: string; password: string }) => register({ data }),
+    mutationFn: (data: RegisterValues) => register({ data }),
     onSuccess: (user) => onAuthenticated(user, redirectTo),
   });
 };

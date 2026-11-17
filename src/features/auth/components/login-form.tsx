@@ -1,23 +1,33 @@
 import { Link } from "@tanstack/react-router";
+import type { FormEvent } from "react";
+import { validateLogin } from "../schemas";
 import { useLogin } from "../use-auth-actions";
+import { FormField } from "@/components/form-field";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
+import { FieldGroup } from "@/components/ui/field";
 import { Spinner } from "@/components/ui/spinner";
+import { useFieldErrors } from "@/hooks/use-field-errors";
+import { getFieldErrors, getFormErrorMessage, hasFieldErrors } from "@/utils/form-errors";
 
-export function LoginForm({ redirectTo }: { redirectTo?: string }) {
+export const LoginForm = ({ redirectTo }: { redirectTo?: string }) => {
   const mutation = useLogin(redirectTo);
+  const { errors, setErrors, clearError } = useFieldErrors();
 
-  const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const onSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    mutation.mutate({
-      email: String(form.get("email") ?? ""),
-      password: String(form.get("password") ?? ""),
-    });
+    const { values, errors: found } = validateLogin(
+      Object.fromEntries(new FormData(event.currentTarget)),
+    );
+    setErrors(found);
+    if (hasFieldErrors(found)) {
+      return;
+    }
+    mutation.mutate(values, { onError: (error) => setErrors(getFieldErrors(error)) });
   };
+
+  const formError = getFormErrorMessage(mutation.error);
 
   return (
     <Card className="w-full max-w-md">
@@ -28,27 +38,29 @@ export function LoginForm({ redirectTo }: { redirectTo?: string }) {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <form onSubmit={onSubmit}>
+        <form onSubmit={onSubmit} noValidate>
           <FieldGroup>
-            {mutation.error && (
+            {formError && (
               <Alert variant="destructive">
-                <AlertDescription>{mutation.error.message}</AlertDescription>
+                <AlertDescription>{formError}</AlertDescription>
               </Alert>
             )}
-            <Field>
-              <FieldLabel htmlFor="email">E-mail</FieldLabel>
-              <Input id="email" name="email" type="text" autoComplete="email" required />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="password">Senha</FieldLabel>
-              <Input
-                id="password"
-                name="password"
-                type="password"
-                autoComplete="current-password"
-                required
-              />
-            </Field>
+            <FormField
+              label="E-mail"
+              name="email"
+              type="email"
+              autoComplete="email"
+              error={errors.email}
+              onFieldChange={clearError}
+            />
+            <FormField
+              label="Senha"
+              name="password"
+              type="password"
+              autoComplete="current-password"
+              error={errors.password}
+              onFieldChange={clearError}
+            />
             <Button type="submit" size="lg" disabled={mutation.isPending}>
               {mutation.isPending && <Spinner />}
               Entrar
@@ -68,4 +80,4 @@ export function LoginForm({ redirectTo }: { redirectTo?: string }) {
       </CardContent>
     </Card>
   );
-}
+};
